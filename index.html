@@ -1,510 +1,641 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Play, CheckCircle, XCircle, Music, VolumeX, Terminal, Code2, Trophy, RotateCcw, CornerDownLeft } from 'lucide-react';
-
-const STEPS = [
-  { id: 0, target: '<!DOCTYPE html>', hint: 'Declare the document type as HTML5. (Hint: starts with <!)', line: 1, indent: 0, widthClass: 'w-[20ch]' },
-  { id: 1, target: '<html>', hint: 'The root element that wraps all other HTML tags.', line: 2, indent: 0, widthClass: 'w-[12ch]' },
-  { id: 2, target: '<head>', hint: 'The section containing metadata and the page title.', line: 3, indent: 1, widthClass: 'w-[12ch]' },
-  { id: 3, target: '<title>', hint: 'The opening tag for the page title.', line: 4, indent: 2, isInlineStart: true, widthClass: 'w-[10ch]' },
-  { id: 4, target: '</title>', hint: 'The closing tag for the page title. (Hint: uses a forward slash /)', line: 4, indent: 0, isInlineEnd: true, widthClass: 'w-[11ch]' },
-  { id: 5, target: '</head>', hint: 'Close the head section.', line: 5, indent: 1, widthClass: 'w-[12ch]' },
-  { id: 6, target: '<body>', hint: 'The section where all visible page content goes.', line: 6, indent: 1, widthClass: 'w-[12ch]' },
-  { id: 7, target: '</body>', hint: 'Close the body section.', line: 8, indent: 1, widthClass: 'w-[12ch]' },
-  { id: 8, target: '</html>', hint: 'Close the root HTML document.', line: 9, indent: 0, widthClass: 'w-[12ch]' }
-];
-
-const INITIAL_SCORE = 0;
-const POINTS_PER_CORRECT = 100;
-const POINTS_PENALTY = 10;
-
-export default function App() {
-  const [gameState, setGameState] = useState('start'); // 'start', 'playing', 'won'
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [inputValue, setInputValue] = useState('');
-  const [score, setScore] = useState(INITIAL_SCORE);
-  const [feedback, setFeedback] = useState({ message: '', type: '' });
-  const [isShaking, setIsShaking] = useState(false);
-  const [isMusicPlaying, setIsMusicPlaying] = useState(false);
-  
-  const audioCtxRef = useRef(null);
-  const bgmIntervalRef = useRef(null);
-  const mainInputRef = useRef(null);
-
-  // Maintain active focus on the single input field during gameplay
-  useEffect(() => {
-    if (gameState === 'playing' && mainInputRef.current) {
-      mainInputRef.current.focus();
-    }
-  }, [currentStepIndex, gameState]);
-
-  // Global click handler to keep keyboard/focus locked to the input field
-  const handleWorkspaceClick = () => {
-    if (gameState === 'playing' && mainInputRef.current) {
-      mainInputRef.current.focus();
-    }
-  };
-
-  // Audio setup (Web Audio API)
-  useEffect(() => {
-    if (!audioCtxRef.current) {
-      audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    return () => {
-      if (bgmIntervalRef.current) clearInterval(bgmIntervalRef.current);
-    };
-  }, []);
-
-  // Background Music Logic (Retro Arpeggio)
-  useEffect(() => {
-    if (isMusicPlaying && audioCtxRef.current) {
-      if (audioCtxRef.current.state === 'suspended') audioCtxRef.current.resume();
-      
-      const notes = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5 (C Major)
-      let step = 0;
-      
-      bgmIntervalRef.current = setInterval(() => {
-        const ctx = audioCtxRef.current;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        
-        osc.type = 'triangle';
-        osc.frequency.value = notes[step % notes.length];
-        
-        gain.gain.setValueAtTime(0.02, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
-        
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.2);
-        
-        step++;
-      }, 250);
-    } else {
-      if (bgmIntervalRef.current) clearInterval(bgmIntervalRef.current);
-    }
-    return () => { if (bgmIntervalRef.current) clearInterval(bgmIntervalRef.current); };
-  }, [isMusicPlaying]);
-
-  const playSfx = (type) => {
-    if (!audioCtxRef.current) return;
-    const ctx = audioCtxRef.current;
-    if (ctx.state === 'suspended') ctx.resume();
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boilerplate Builder: Creating Your First HTML Structure</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
     
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    if (type === 'success') {
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(440, ctx.currentTime); // A4
-      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.1); // A5
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.2);
-    } else if (type === 'error') {
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(150, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.2);
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.3);
-    } else if (type === 'win') {
-      const freqs = [523.25, 659.25, 783.99, 1046.50];
-      freqs.forEach((f, i) => {
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.connect(g);
-        g.connect(ctx.destination);
-        o.frequency.value = f;
-        g.gain.setValueAtTime(0, ctx.currentTime + i * 0.15);
-        g.gain.linearRampToValueAtTime(0.1, ctx.currentTime + i * 0.15 + 0.05);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.15 + 0.4);
-        o.start(ctx.currentTime + i * 0.15);
-        o.stop(ctx.currentTime + i * 0.15 + 0.4);
-      });
-    }
-  };
-
-  const normalizeInput = (str) => str.replace(/\s+/g, ' ').trim().toLowerCase();
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      checkAnswer();
-    }
-  };
-
-  const checkAnswer = () => {
-    const currentStep = STEPS[currentStepIndex];
-    if (normalizeInput(inputValue) === normalizeInput(currentStep.target)) {
-      playSfx('success');
-      setScore(s => s + POINTS_PER_CORRECT);
-      setInputValue('');
-      setFeedback({ message: `Successfully compiled: "${currentStep.target}"`, type: 'success' });
-      
-      if (currentStepIndex + 1 < STEPS.length) {
-        setCurrentStepIndex(currentStepIndex + 1);
-      } else {
-        setGameState('won');
-        playSfx('win');
-      }
-    } else {
-      playSfx('error');
-      setScore(s => Math.max(0, s - POINTS_PENALTY));
-      setFeedback({ message: 'Syntax Error: Check tag matching, brackets, and typing.', type: 'error' });
-      setIsShaking(true);
-      setTimeout(() => setIsShaking(false), 500);
-    }
-    // Re-focus immediately
-    if (mainInputRef.current) {
-      mainInputRef.current.focus();
-    }
-  };
-
-  const startGame = () => {
-    setGameState('playing');
-    setCurrentStepIndex(0);
-    setScore(0);
-    setInputValue('');
-    setFeedback({ message: 'Compiler online. Awaiting system inputs...', type: 'info' });
-    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume();
-    }
-  };
-
-  const toggleMusic = () => {
-    setIsMusicPlaying(!isMusicPlaying);
-  };
-
-  // Syntax highlighting for completed tags
-  const SyntaxText = ({ text }) => {
-    const parts = text.split(/(<[^>]+>)/g);
-    return (
-      <>
-        {parts.map((part, i) => {
-          if (part.startsWith('<') && part.endsWith('>')) {
-            const inner = part.slice(1, -1);
-            const isClosing = inner.startsWith('/');
-            const tagName = isClosing ? inner.slice(1) : inner.split(' ')[0];
-            const rest = isClosing ? '' : inner.slice(tagName.length);
-            return (
-              <span key={i} className="text-pink-400">
-                {'<'}{isClosing && '/'}<span className="text-cyan-400">{tagName}</span><span className="text-yellow-200">{rest}</span>{'>'}
-              </span>
-            );
-          }
-          return <span key={i} className="text-gray-300">{part}</span>;
-        })}
-      </>
-    );
-  };
-
-  const EditorLine = ({ lineNum, indent, isActive, children }) => (
-    <div className={`flex font-mono text-sm sm:text-base md:text-lg leading-relaxed px-2 rounded transition-all duration-150 ${
-      isActive ? 'bg-blue-500/10 border-l-2 border-blue-500 font-bold' : 'hover:bg-white/5 border-l-2 border-transparent'
-    }`}>
-      <span className={`w-8 select-none text-right pr-4 ${isActive ? 'text-blue-400' : 'text-gray-600'}`}>{lineNum}</span>
-      <span style={{ paddingLeft: `${indent * 1.5}rem` }} className="flex-1 flex items-center min-h-[1.75rem]">
-        {children}
-      </span>
-    </div>
-  );
-
-  // Renders either the completed syntax, the active input mirror, or empty spacer
-  const renderLineContent = (stepIndex, lineId, indentLevel) => {
-    const isLineActive = currentStepIndex === stepIndex;
-    const isLineCompleted = currentStepIndex > stepIndex;
-
-    if (isLineCompleted) {
-      // Step 3 & 4 are on the same line (Line 4)
-      if (stepIndex === 3) {
-        return (
-          <>
-            <SyntaxText text="<title>" />
-            <span className="text-gray-400">Document</span>
-            {currentStepIndex > 4 ? <SyntaxText text="</title>" /> : (currentStepIndex === 4 ? renderActiveInputMirror() : null)}
-          </>
-        );
-      }
-      if (stepIndex === 4) return null; // Handled inline by step 3
-      return <SyntaxText text={STEPS[stepIndex].target} />;
-    }
-
-    if (isLineActive) {
-      if (stepIndex === 3) {
-        return (
-          <>
-            {renderActiveInputMirror()}
-            <span className="text-gray-400 opacity-50 ml-1">Document</span>
-          </>
-        );
-      }
-      if (stepIndex === 4) {
-        return (
-          <>
-            <SyntaxText text="<title>" />
-            <span className="text-gray-400 mr-1">Document</span>
-            {renderActiveInputMirror()}
-          </>
-        );
-      }
-      return renderActiveInputMirror();
-    }
-
-    return null;
-  };
-
-  const renderActiveInputMirror = () => (
-    <span className={`relative inline-flex items-center bg-[#2d2d2d] border px-2 py-0.5 rounded text-white min-h-[1.5rem] transition-all min-w-[120px] ${
-      isShaking ? 'border-red-500 animate-[shake_0.4s_ease-in-out]' : 'border-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.25)]'
-    }`}>
-      <span className="font-mono text-emerald-400">{inputValue || <span className="text-gray-500 italic text-xs">type here...</span>}</span>
-      <span className="w-2 h-4 ml-0.5 bg-blue-400 animate-[blink_1s_infinite]"></span>
-    </span>
-  );
-
-  return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4 sm:p-6 font-sans select-none" onClick={handleWorkspaceClick}>
-      
-      {/* 16:9 Main Container */}
-      <div className="w-full max-w-6xl aspect-[16/9] bg-[#1e1e1e] rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col relative border border-gray-800">
-        
-        {/* Title Bar (Mac OS Style) */}
-        <div className="bg-[#2d2d2d] h-11 w-full flex items-center px-4 justify-between border-b border-gray-800">
-          <div className="flex space-x-2">
-            <div className="w-3 h-3 rounded-full bg-red-500/80 hover:bg-red-500"></div>
-            <div className="w-3 h-3 rounded-full bg-yellow-500/80 hover:bg-yellow-500"></div>
-            <div className="w-3 h-3 rounded-full bg-green-500/80 hover:bg-green-500"></div>
-          </div>
-          <div className="text-gray-400 font-mono text-sm flex items-center gap-2">
-            <Code2 size={16} className="text-blue-400" /> Boilerplate Builder: Grade 7 Computer Technology
-          </div>
-          <div className="flex items-center gap-4">
-            {gameState !== 'start' && (
-              <div className="text-emerald-400 font-mono font-bold text-xs bg-black/40 px-3 py-1 rounded border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
-                SCORE: {score.toString().padStart(4, '0')}
-              </div>
-            )}
-            <button 
-              onClick={(e) => { e.stopPropagation(); toggleMusic(); }} 
-              className="text-gray-400 hover:text-white transition-colors p-1"
-              title="Toggle Music"
-            >
-              {isMusicPlaying ? <Music size={18} className="text-blue-400 animate-pulse" /> : <VolumeX size={18} />}
-            </button>
-          </div>
-        </div>
-
-        {/* Content Area */}
-        <div className="flex-1 flex overflow-hidden">
-          
-          {/* Start Screen */}
-          {gameState === 'start' && (
-            <div className="flex-1 flex flex-col items-center justify-center bg-gradient-to-b from-[#1e1e1e] to-[#0f0f0f] p-8 text-center">
-              <div className="w-20 h-20 bg-blue-500/20 rounded-2xl flex items-center justify-center mb-6 border border-blue-500/30 shadow-[0_0_30px_rgba(59,130,246,0.2)]">
-                <Terminal size={40} className="text-blue-400" />
-              </div>
-              <h1 className="text-3xl md:text-4xl font-bold text-white mb-3 tracking-tight">
-                Boilerplate <span className="text-blue-400">Builder</span>
-              </h1>
-              <p className="text-gray-400 text-sm md:text-base max-w-xl mb-8 leading-relaxed">
-                Welcome, Future Developer! Every single website starts with an HTML "boilerplate". 
-                Complete each line of standard structure by typing the correct tag inside the terminal.
-              </p>
-              <button 
-                onClick={(e) => { e.stopPropagation(); startGame(); }}
-                className="group relative px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all transform hover:scale-102 active:scale-98 shadow-[0_0_20px_rgba(59,130,246,0.3)] flex items-center gap-2 text-md"
-              >
-                <Play className="fill-current w-4 h-4" /> Start Writing Code
-              </button>
-            </div>
-          )}
-
-          {/* Playing Screen */}
-          {gameState === 'playing' && (
-            <>
-              {/* Left Panel: Instructions, Terminal Input & Feedback */}
-              <div className="w-[38%] bg-[#1a1a1c] border-r border-gray-800 flex flex-col justify-between p-5">
-                
-                {/* Instruction Module */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-gray-500 font-bold">
-                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping"></span>
-                    Mission Objective
-                  </div>
-                  <div className="bg-black/30 rounded-xl p-4 border border-gray-800 min-h-[90px] flex flex-col justify-center">
-                    <p className="text-blue-300 font-mono text-sm leading-relaxed">
-                      {STEPS[currentStepIndex].hint}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Persistent Terminal Keyboard Input Box (Centered Focus Point) */}
-                <div className="my-4 space-y-2">
-                  <div className="flex items-center justify-between text-xs uppercase tracking-widest text-gray-500 font-bold">
-                    <span>Terminal Input</span>
-                    <span className="text-[10px] text-blue-500 animate-pulse">Ready to Type</span>
-                  </div>
-                  <div className="relative">
-                    <input 
-                      ref={mainInputRef}
-                      type="text" 
-                      value={inputValue} 
-                      onChange={(e) => setInputValue(e.target.value)} 
-                      onKeyDown={handleKeyDown} 
-                      className={`w-full bg-[#2a2a2c] text-emerald-400 font-mono text-sm md:text-base border ${
-                        isShaking ? 'border-red-500 animate-[shake_0.4s_ease-in-out]' : 'border-gray-700 focus:border-blue-500'
-                      } outline-none px-4 py-3 rounded-lg shadow-inner pl-8 transition-all`}
-                      placeholder="Type correct HTML tag here..."
-                      autoFocus
-                    />
-                    <span className="absolute left-3 top-[13px] font-mono text-gray-500 text-sm select-none">&gt;</span>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); checkAnswer(); }}
-                      className="absolute right-2 top-2 p-1.5 bg-blue-600 hover:bg-blue-500 rounded text-white transition-colors"
-                      title="Submit Answer"
-                    >
-                      <CornerDownLeft size={16} />
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Live Compiler System Output */}
-                <div>
-                  <h2 className="text-xs uppercase tracking-widest text-gray-500 font-bold mb-2">System Output</h2>
-                  <div className={`p-3 rounded-lg font-mono text-xs border flex items-start gap-2.5 transition-colors ${
-                    feedback.type === 'success' ? 'bg-green-500/10 border-green-500/30 text-green-400' : 
-                    feedback.type === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-400' : 
-                    'bg-gray-800/50 border-gray-700 text-gray-400'
-                  }`}>
-                    {feedback.type === 'success' ? <CheckCircle size={14} className="mt-0.5 shrink-0" /> : 
-                     feedback.type === 'error' ? <XCircle size={14} className="mt-0.5 shrink-0" /> : 
-                     <Terminal size={14} className="mt-0.5 shrink-0" />}
-                    <span>{feedback.message}</span>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Right Panel: Code Editor (The Interactive Workspace) */}
-              <div className="flex-1 bg-[#1e1e1e] p-6 overflow-y-auto custom-scrollbar flex flex-col justify-center">
-                <div className="font-mono space-y-1">
-                  
-                  {/* Line 1: DOCTYPE */}
-                  <EditorLine lineNum={1} indent={0} isActive={currentStepIndex === 0}>
-                    {renderLineContent(0, 1, 0)}
-                  </EditorLine>
-
-                  {/* Line 2: html */}
-                  <EditorLine lineNum={2} indent={0} isActive={currentStepIndex === 1}>
-                    {renderLineContent(1, 2, 0)}
-                  </EditorLine>
-
-                  {/* Line 3: head */}
-                  <EditorLine lineNum={3} indent={1} isActive={currentStepIndex === 2}>
-                    {renderLineContent(2, 3, 1)}
-                  </EditorLine>
-
-                  {/* Line 4: title */}
-                  <EditorLine lineNum={4} indent={2} isActive={currentStepIndex === 3 || currentStepIndex === 4}>
-                    {renderLineContent(3, 4, 2)}
-                  </EditorLine>
-
-                  {/* Line 5: /head */}
-                  <EditorLine lineNum={5} indent={1} isActive={currentStepIndex === 5}>
-                    {renderLineContent(5, 5, 1)}
-                  </EditorLine>
-
-                  {/* Line 6: body */}
-                  <EditorLine lineNum={6} indent={1} isActive={currentStepIndex === 6}>
-                    {renderLineContent(6, 6, 1)}
-                  </EditorLine>
-
-                  {/* Line 7: body interior spacer */}
-                  <EditorLine lineNum={7} indent={2} isActive={false}>
-                    {currentStepIndex > 6 && <span className="inline-block w-2 h-4 bg-blue-500/30 animate-pulse"></span>}
-                  </EditorLine>
-
-                  {/* Line 8: /body */}
-                  <EditorLine lineNum={8} indent={1} isActive={currentStepIndex === 7}>
-                    {renderLineContent(7, 8, 1)}
-                  </EditorLine>
-
-                  {/* Line 9: /html */}
-                  <EditorLine lineNum={9} indent={0} isActive={currentStepIndex === 8}>
-                    {renderLineContent(8, 9, 0)}
-                  </EditorLine>
-
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* Won Screen */}
-          {gameState === 'won' && (
-            <div className="flex-1 flex flex-col items-center justify-center bg-gradient-to-t from-emerald-950/40 to-[#1e1e1e] p-6 text-center relative overflow-hidden">
-              <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjA1KSIvPjwvc3ZnPg==')] pointer-events-none opacity-40"></div>
-              
-              <Trophy size={56} className="text-yellow-400 mb-4 drop-shadow-[0_0_20px_rgba(250,204,21,0.5)] animate-bounce" />
-              <h2 className="text-3xl font-bold text-white mb-1">Structure Successfully Built!</h2>
-              <p className="text-emerald-400 text-lg font-mono mb-6">Master Score: {score}</p>
-              
-              <div className="bg-black/50 p-5 rounded-xl border border-gray-800 text-left font-mono text-xs sm:text-sm md:text-base mb-6 shadow-2xl relative group max-w-md w-full">
-                <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 to-emerald-600 rounded-xl blur opacity-10 group-hover:opacity-25 transition duration-1000"></div>
-                <div className="relative space-y-1">
-                  <SyntaxText text="<!DOCTYPE html>" /><br/>
-                  <SyntaxText text="<html>" /><br/>
-                  &nbsp;&nbsp;<SyntaxText text="<head>" /><br/>
-                  &nbsp;&nbsp;&nbsp;&nbsp;<SyntaxText text="<title>" /><span className="text-gray-400">Document</span><SyntaxText text="</title>" /><br/>
-                  &nbsp;&nbsp;<SyntaxText text="</head>" /><br/>
-                  &nbsp;&nbsp;<SyntaxText text="<body>" /><br/>
-                  <br/>
-                  &nbsp;&nbsp;<SyntaxText text="</body>" /><br/>
-                  <SyntaxText text="</html>" />
-                </div>
-              </div>
-
-              <button 
-                onClick={(e) => { e.stopPropagation(); startGame(); }}
-                className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg border border-white/20 transition-colors flex items-center gap-2 text-sm"
-              >
-                <RotateCcw size={16} /> Compile Again
-              </button>
-            </div>
-          )}
-
-        </div>
-      </div>
-
-      <style dangerouslySetInnerHTML={{__html: `
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: radial-gradient(circle at center, #0b0f19 0%, #030712 100%);
+        }
+        .code-font {
+            font-family: 'JetBrains+Mono', 'Courier New', Courier, monospace;
+        }
         @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-4px); }
-          50% { transform: translateX(4px); }
-          75% { transform: translateX(-4px); }
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-4px); }
+            50% { transform: translateX(4px); }
+            75% { transform: translateX(-4px); }
+        }
+        .animate-shake {
+            animation: shake 0.4s ease-in-out;
         }
         @keyframes blink {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0; }
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
         }
+        .animate-blink {
+            animation: blink 1s infinite;
+        }
+        /* Custom Scrollbar */
         .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
+            width: 8px;
+            height: 8px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-          background: #1e1e1e;
+            background: #111827;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #333;
-          border-radius: 4px;
+            background: #374151;
+            border-radius: 4px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #444;
+            background: #4b5563;
         }
-      `}} />
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 sm:p-6 overflow-hidden select-none">
+
+    <!-- 16:9 Game Workframe Container -->
+    <div id="game-container" class="w-full max-w-6xl aspect-[16/9] bg-[#111] rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col relative border border-gray-800">
+        
+        <!-- Header / MacOS Terminal Style Bar -->
+        <div class="bg-[#1e1e24] h-11 w-full flex items-center px-4 justify-between border-b border-gray-800 shrink-0">
+            <!-- Left Dots -->
+            <div class="flex space-x-2">
+                <div class="w-3.5 h-3.5 rounded-full bg-red-500/80 hover:bg-red-500 transition-colors cursor-pointer"></div>
+                <div class="w-3.5 h-3.5 rounded-full bg-yellow-500/80 hover:bg-yellow-500 transition-colors cursor-pointer"></div>
+                <div class="w-3.5 h-3.5 rounded-full bg-green-500/80 hover:bg-green-500 transition-colors cursor-pointer"></div>
+            </div>
+            <!-- Title -->
+            <div class="text-gray-400 code-font text-xs sm:text-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 002-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span>Boilerplate Builder: Grade 7 HTML Architecture</span>
+            </div>
+            <!-- Settings / Stats -->
+            <div class="flex items-center gap-4">
+                <div id="score-badge" class="hidden text-emerald-400 code-font font-bold text-xs bg-black/40 px-3 py-1 rounded border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                    SCORE: <span id="score-val">0000</span>
+                </div>
+                <!-- Music Toggle Button -->
+                <button id="music-btn" class="text-gray-400 hover:text-white transition-colors p-1.5 focus:outline-none" title="Toggle Synthesizer Music">
+                    <!-- Audio Off Icon -->
+                    <svg id="music-off-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+                    </svg>
+                    <!-- Audio On Icon (hidden by default) -->
+                    <svg id="music-on-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden text-blue-400 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Inner Window Screen Management -->
+        <div id="screen-container" class="flex-1 flex overflow-hidden">
+            
+            <!-- START GAME PANEL -->
+            <div id="start-panel" class="flex-1 flex flex-col items-center justify-center bg-gradient-to-b from-[#18181c] to-[#0d0d10] p-8 text-center">
+                <div class="w-20 h-20 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-6 border border-blue-500/20 shadow-[0_0_30px_rgba(59,130,246,0.15)]">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                    </svg>
+                </div>
+                <h1 class="text-3xl md:text-5xl font-extrabold text-white mb-3 tracking-tight">
+                    Boilerplate <span class="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">Builder</span>
+                </h1>
+                <p class="text-gray-400 text-sm md:text-base max-w-lg mb-8 leading-relaxed">
+                    Hello, aspiring coder! Every single webpage starts with a standard layout called an HTML "boilerplate".
+                    Type each crucial building block into your dashboard compiler console to construct your first webpage document correctly.
+                </p>
+                <button id="start-btn" class="group relative px-8 py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all duration-200 transform hover:scale-[1.03] active:scale-[0.98] shadow-[0_0_20px_rgba(59,130,246,0.3)] flex items-center gap-2.5 text-md">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 fill-current" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                    </svg>
+                    Initialize HTML compiler
+                </button>
+            </div>
+
+            <!-- MAIN GAME MODULE (Hidden initially) -->
+            <div id="game-panel" class="hidden flex-1 flex overflow-hidden">
+                
+                <!-- Left Task Controller Panel -->
+                <div class="w-[38%] bg-[#151518] border-r border-gray-800 flex flex-col justify-between p-5 shrink-0">
+                    
+                    <!-- Objective & Steps Info -->
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-2 text-xs uppercase tracking-widest text-gray-500 font-bold">
+                            <span class="w-2.5 h-2.5 rounded-full bg-blue-500 animate-ping"></span>
+                            Developer Mission Objective
+                        </div>
+                        <div class="bg-[#0c0c0e] rounded-xl p-4 border border-gray-800 min-h-[96px] flex flex-col justify-center shadow-inner">
+                            <p id="task-hint" class="text-blue-300 code-font text-xs md:text-sm leading-relaxed">
+                                Loading mission context...
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Keyboard Persistent Input Controller Box -->
+                    <div class="my-4 space-y-2">
+                        <div class="flex items-center justify-between text-xs uppercase tracking-widest text-gray-500 font-bold">
+                            <span>Interactive Console</span>
+                            <span class="text-[10px] text-blue-500 animate-pulse">Awaiting Input</span>
+                        </div>
+                        <div class="relative">
+                            <input 
+                                id="console-input"
+                                type="text" 
+                                class="w-full bg-[#1e1e24] text-emerald-400 code-font text-xs md:text-sm border border-gray-700 focus:border-blue-500 outline-none px-4 py-3 rounded-lg shadow-inner pl-8 transition-all"
+                                placeholder="Write correct tag here..."
+                                autocomplete="off"
+                                autofocus
+                            />
+                            <span class="absolute left-3.5 top-[11px] code-font text-gray-500 text-sm select-none">&gt;</span>
+                            <button 
+                                id="submit-btn"
+                                class="absolute right-2.5 top-[7px] p-1.5 bg-blue-600 hover:bg-blue-500 rounded text-white transition-colors focus:outline-none"
+                                title="Verify Syntax"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Console System Output Logs -->
+                    <div class="space-y-1.5">
+                        <h2 class="text-xs uppercase tracking-widest text-gray-500 font-bold">System Output Logs</h2>
+                        <div id="output-log-box" class="p-3.5 rounded-lg code-font text-xs border flex items-start gap-2.5 transition-colors bg-gray-900/40 border-gray-800 text-gray-400">
+                            <!-- SVG Status Icons will swap dynamically here -->
+                            <svg id="status-icon" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mt-0.5 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span id="output-log-text">Synthesizer connected. Standard terminal environment ready.</span>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Right Workspace Editor Window -->
+                <div id="editor-workspace" class="flex-1 bg-[#1a1a1e] p-6 overflow-y-auto custom-scrollbar flex flex-col justify-center">
+                    <div id="editor-lines-container" class="code-font space-y-1">
+                        <!-- Code lines are rendered dynamically via Javascript -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- COMPLETED WIN STATE PANEL (Hidden initially) -->
+            <div id="won-panel" class="hidden flex-1 flex flex-col items-center justify-center bg-gradient-to-t from-emerald-950/20 to-[#101014] p-8 text-center relative overflow-hidden">
+                
+                <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjA1KSIvPjwvc3ZnPg==')] pointer-events-none opacity-40"></div>
+                
+                <div class="w-16 h-16 bg-yellow-500/10 rounded-2xl flex items-center justify-center mb-4 border border-yellow-500/20 shadow-[0_0_30px_rgba(234,179,8,0.2)] animate-bounce">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                    </svg>
+                </div>
+                
+                <h2 class="text-3xl md:text-4xl font-extrabold text-white mb-1">Architecture Compiled!</h2>
+                <p class="text-emerald-400 text-lg code-font font-bold mb-6">High Score: <span id="final-score-val">1000</span> PTS</p>
+                
+                <!-- Code Mockup View of completed structure -->
+                <div class="bg-black/40 p-5 rounded-xl border border-gray-800 text-left code-font text-xs sm:text-sm mb-6 max-w-sm w-full shadow-2xl relative">
+                    <div class="text-pink-400">&lt;!DOCTYPE html&gt;</div>
+                    <div class="text-pink-400">&lt;<span class="text-cyan-400">html</span>&gt;</div>
+                    <div class="text-pink-400">&nbsp;&nbsp;&lt;<span class="text-cyan-400">head</span>&gt;</div>
+                    <div class="text-pink-400">&nbsp;&nbsp;&nbsp;&nbsp;&lt;<span class="text-cyan-400">title</span>&gt;<span class="text-gray-300">Document</span>&lt;/<span class="text-cyan-400">title</span>&gt;</div>
+                    <div class="text-pink-400">&nbsp;&nbsp;&lt;/<span class="text-cyan-400">head</span>&gt;</div>
+                    <div class="text-pink-400">&nbsp;&nbsp;&lt;<span class="text-cyan-400">body</span>&gt;</div>
+                    <div>&nbsp;&nbsp;</div>
+                    <div class="text-pink-400">&nbsp;&nbsp;&lt;/<span class="text-cyan-400">body</span>&gt;</div>
+                    <div class="text-pink-400">&lt;/<span class="text-cyan-400">html</span>&gt;</div>
+                </div>
+
+                <button id="reset-btn" class="px-6 py-2.5 bg-white/10 hover:bg-white/15 text-white font-semibold rounded-lg border border-white/10 transition-all flex items-center gap-2 text-sm focus:outline-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15.89M9 11l3-3m0 0l3 3m-3-3v12" />
+                    </svg>
+                    Recompile Structure
+                </button>
+            </div>
+
+        </div>
     </div>
-  );
-}
+
+    <!-- Application Engine -->
+    <script>
+        // Constants & Steps Database matching exact Grade 7 curriculum
+        const STEPS = [
+          { id: 0, target: '<!DOCTYPE html>', hint: 'Declare the document type to the browser as HTML5. (Hint: starts with &lt;!)', line: 1 },
+          { id: 1, target: '<html>', hint: 'The core container root element that wraps all page code. (Hint: &lt;html&gt;)', line: 2 },
+          { id: 2, target: '<head>', hint: 'The metadata tag that contains hidden settings, metadata, and stylesheet links.', line: 3 },
+          { id: 3, target: '<title>', hint: 'The opening tab title element inside head. (Hint: &lt;title&gt;)', line: 4 },
+          { id: 4, target: '</title>', hint: 'Close the title tag securely to avoid display bugs! (Hint: uses forward-slash /)', line: 4 },
+          { id: 5, target: '</head>', hint: 'Close the head tag safely before starting the visible text section.', line: 5 },
+          { id: 6, target: '<body>', hint: 'This container holds all the visible elements that users see on the page.', line: 6 },
+          { id: 7, target: '</body>', hint: 'Close the body container properly.', line: 8 },
+          { id: 8, target: '</html>', hint: 'Complete the document by closing the root html element.', line: 9 }
+        ];
+
+        const POINTS_PER_CORRECT = 100;
+        const POINTS_PENALTY = 10;
+
+        // Reactive Application State
+        let gameState = 'start'; // 'start' | 'playing' | 'won'
+        let currentStepIndex = 0;
+        let inputValue = '';
+        let score = 0;
+        let isShaking = false;
+        let isMusicPlaying = false;
+
+        // Web Audio Synthesizer Engine Refs
+        let audioCtx = null;
+        let bgmInterval = null;
+
+        // DOM Element Selector references
+        const gameContainer = document.getElementById('game-container');
+        const startPanel = document.getElementById('start-panel');
+        const gamePanel = document.getElementById('game-panel');
+        const wonPanel = document.getElementById('won-panel');
+        
+        const consoleInput = document.getElementById('console-input');
+        const submitBtn = document.getElementById('submit-btn');
+        const outputLogBox = document.getElementById('output-log-box');
+        const outputLogText = document.getElementById('output-log-text');
+        const statusIcon = document.getElementById('status-icon');
+        const scoreBadge = document.getElementById('score-badge');
+        const scoreVal = document.getElementById('score-val');
+        const finalScoreVal = document.getElementById('final-score-val');
+        const taskHint = document.getElementById('task-hint');
+        const editorLinesContainer = document.getElementById('editor-lines-container');
+        
+        const startBtn = document.getElementById('start-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const musicBtn = document.getElementById('music-btn');
+        const musicOnIcon = document.getElementById('music-on-icon');
+        const musicOffIcon = document.getElementById('music-off-icon');
+
+        // Initialize Audio context safely on action
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        // Web Audio Procedural Synth Sound Effects
+        function playSfx(type) {
+            if (!audioCtx) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            if (type === 'success') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(440, audioCtx.currentTime); // A4
+                osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.12); // A5
+                gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 0.2);
+            } else if (type === 'error') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.25);
+                gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 0.3);
+            } else if (type === 'win') {
+                const freqs = [523.25, 659.25, 783.99, 1046.50]; // C, E, G, C Arpeggio
+                freqs.forEach((f, i) => {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.connect(g);
+                    g.connect(audioCtx.destination);
+                    o.frequency.value = f;
+                    g.gain.setValueAtTime(0, audioCtx.currentTime + i * 0.12);
+                    g.gain.linearRampToValueAtTime(0.08, audioCtx.currentTime + i * 0.12 + 0.05);
+                    g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + i * 0.12 + 0.35);
+                    o.start(audioCtx.currentTime + i * 0.12);
+                    o.stop(audioCtx.currentTime + i * 0.12 + 0.35);
+                });
+            }
+        }
+
+        // Procedural Retro Chiptune Loop
+        function handleMusicLoop() {
+            if (isMusicPlaying && audioCtx) {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const notes = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63]; // C4, E4, G4, C5 arpeggio progression
+                let step = 0;
+                
+                bgmInterval = setInterval(() => {
+                    if (!audioCtx) return;
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    
+                    osc.type = 'triangle';
+                    osc.frequency.value = notes[step % notes.length];
+                    
+                    gain.gain.setValueAtTime(0.015, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+                    
+                    osc.start(audioCtx.currentTime);
+                    osc.stop(audioCtx.currentTime + 0.25);
+                    
+                    step++;
+                }, 260);
+            } else {
+                if (bgmInterval) {
+                    clearInterval(bgmInterval);
+                    bgmInterval = null;
+                }
+            }
+        }
+
+        // Toggle Sound Engine State
+        function toggleMusic() {
+            initAudio();
+            isMusicPlaying = !isMusicPlaying;
+            if (isMusicPlaying) {
+                musicOnIcon.classList.remove('hidden');
+                musicOffIcon.classList.add('hidden');
+            } else {
+                musicOnIcon.classList.add('hidden');
+                musicOffIcon.classList.remove('music-off-icon');
+                musicOffIcon.classList.remove('hidden');
+            }
+            handleMusicLoop();
+        }
+
+        // Helper string normalizer to compare student answers
+        function normalizeString(str) {
+            return str.replace(/\s+/g, ' ').trim().toLowerCase();
+        }
+
+        // Escape helper for safe html parsing in editor mirror
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Code Syntax Highlighter Engine
+        function highlightSyntax(text) {
+            return text.replace(/(<[^>]+>)/g, (match) => {
+                const inner = match.slice(1, -1);
+                const isClosing = inner.startsWith('/');
+                const tagName = isClosing ? inner.slice(1) : inner.split(' ')[0];
+                const rest = isClosing ? '' : inner.slice(tagName.length);
+                return `<span class="text-pink-400">&lt;${isClosing ? '/' : ''}<span class="text-cyan-400">${tagName}</span><span class="text-yellow-200">${rest}</span>&gt;</span>`;
+            });
+        }
+
+        // Active inline text input mirror display
+        function getActiveMirrorHTML() {
+            const safeTextVal = escapeHtml(inputValue) || `<span class="text-gray-500 italic text-xs">type here...</span>`;
+            return `
+                <span class="relative inline-flex items-center bg-[#2c2c35] border px-2 py-0.5 rounded text-white min-h-[1.5rem] min-w-[120px] transition-all ${
+                    isShaking ? 'border-red-500 animate-shake shadow-[0_0_8px_rgba(239,68,68,0.4)]' : 'border-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.3)]'
+                }">
+                    <span class="font-mono text-emerald-400">${safeTextVal}</span>
+                    <span class="w-1.5 h-4 ml-1 bg-blue-400 animate-blink"></span>
+                </span>
+            `;
+        }
+
+        // Core IDE View Renderer Engine
+        function renderLine(lineNum) {
+            let htmlContent = '';
+            let isActive = false;
+
+            if (lineNum === 1) {
+                isActive = currentStepIndex === 0;
+                if (currentStepIndex > 0) htmlContent = highlightSyntax('<!DOCTYPE html>');
+                else if (isActive) htmlContent = getActiveMirrorHTML();
+            }
+            else if (lineNum === 2) {
+                isActive = currentStepIndex === 1;
+                if (currentStepIndex > 1) htmlContent = highlightSyntax('<html>');
+                else if (isActive) htmlContent = getActiveMirrorHTML();
+            }
+            else if (lineNum === 3) {
+                isActive = currentStepIndex === 2;
+                if (currentStepIndex > 2) htmlContent = highlightSyntax('<head>');
+                else if (isActive) htmlContent = getActiveMirrorHTML();
+            }
+            else if (lineNum === 4) {
+                isActive = (currentStepIndex === 3 || currentStepIndex === 4);
+                if (currentStepIndex > 4) {
+                    htmlContent = highlightSyntax('<title>') + '<span class="text-gray-300">Document</span>' + highlightSyntax('</title>');
+                } else if (currentStepIndex === 3) {
+                    htmlContent = getActiveMirrorHTML() + '<span class="text-gray-400 opacity-50 ml-1">Document</span>';
+                } else if (currentStepIndex === 4) {
+                    htmlContent = highlightSyntax('<title>') + '<span class="text-gray-300 mr-1">Document</span>' + getActiveMirrorHTML();
+                }
+            }
+            else if (lineNum === 5) {
+                isActive = currentStepIndex === 5;
+                if (currentStepIndex > 5) htmlContent = highlightSyntax('</head>');
+                else if (isActive) htmlContent = getActiveMirrorHTML();
+            }
+            else if (lineNum === 6) {
+                isActive = currentStepIndex === 6;
+                if (currentStepIndex > 6) htmlContent = highlightSyntax('<body>');
+                else if (isActive) htmlContent = getActiveMirrorHTML();
+            }
+            else if (lineNum === 7) {
+                if (currentStepIndex > 6) {
+                    htmlContent = '<span class="inline-block w-2 h-4 bg-blue-500/30 animate-pulse"></span>';
+                }
+            }
+            else if (lineNum === 8) {
+                isActive = currentStepIndex === 7;
+                if (currentStepIndex > 7) htmlContent = highlightSyntax('</body>');
+                else if (isActive) htmlContent = getActiveMirrorHTML();
+            }
+            else if (lineNum === 9) {
+                isActive = currentStepIndex === 8;
+                if (currentStepIndex > 8) htmlContent = highlightSyntax('</html>');
+                else if (isActive) htmlContent = getActiveMirrorHTML();
+            }
+
+            const indent = (lineNum === 3 || lineNum === 5 || lineNum === 6 || lineNum === 8) ? 1 : 
+                           (lineNum === 4 || lineNum === 7) ? 2 : 0;
+            const indentClass = `pl-${indent * 6}`;
+
+            return `
+                <div class="flex leading-relaxed px-2 rounded transition-all duration-150 ${
+                    isActive ? 'bg-blue-500/10 border-l-2 border-blue-500 font-bold' : 'hover:bg-white/5 border-l-2 border-transparent'
+                }">
+                    <span class="w-8 select-none text-right pr-4 ${isActive ? 'text-blue-400' : 'text-gray-600'}">${lineNum}</span>
+                    <span class="flex-1 flex items-center min-h-[1.75rem] ${indentClass}">
+                        ${htmlContent}
+                    </span>
+                </div>
+            `;
+        }
+
+        function updateEditorWorkspace() {
+            let workspaceHTML = '';
+            for (let i = 1; i <= 9; i++) {
+                workspaceHTML += renderLine(i);
+            }
+            editorLinesContainer.innerHTML = workspaceHTML;
+        }
+
+        // Render Panel Views
+        function renderPanel() {
+            if (gameState === 'start') {
+                startPanel.classList.remove('hidden');
+                gamePanel.classList.add('hidden');
+                wonPanel.classList.add('hidden');
+                scoreBadge.classList.add('hidden');
+            } else if (gameState === 'playing') {
+                startPanel.classList.add('hidden');
+                gamePanel.classList.remove('hidden');
+                wonPanel.classList.add('hidden');
+                scoreBadge.classList.remove('hidden');
+                
+                scoreVal.innerText = score.toString().padStart(4, '0');
+                taskHint.innerHTML = STEPS[currentStepIndex].hint;
+                updateEditorWorkspace();
+                
+                // Refocus keyboard control
+                consoleInput.focus();
+            } else if (gameState === 'won') {
+                startPanel.classList.add('hidden');
+                gamePanel.classList.add('hidden');
+                wonPanel.classList.remove('hidden');
+                scoreBadge.classList.remove('hidden');
+                
+                finalScoreVal.innerText = score;
+            }
+        }
+
+        // Verify compiler input
+        function checkAnswer() {
+            const currentStep = STEPS[currentStepIndex];
+            const cleanUserVal = normalizeString(inputValue);
+            const cleanTargetVal = normalizeString(currentStep.target);
+
+            if (cleanUserVal === cleanTargetVal) {
+                // Success Scenario
+                playSfx('success');
+                score += POINTS_PER_CORRECT;
+                inputValue = '';
+                consoleInput.value = '';
+                
+                // Show dynamic positive logs
+                outputLogBox.className = "p-3.5 rounded-lg code-font text-xs border flex items-start gap-2.5 transition-colors bg-green-500/10 border-green-500/30 text-green-400";
+                statusIcon.className = "h-4 w-4 mt-0.5 shrink-0 text-green-400";
+                statusIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />`;
+                outputLogText.innerText = `Compiled Successfully: "${currentStep.target}"`;
+
+                if (currentStepIndex + 1 < STEPS.length) {
+                    currentStepIndex++;
+                } else {
+                    gameState = 'won';
+                    playSfx('win');
+                }
+            } else {
+                // Penalty Error Scenario
+                playSfx('error');
+                score = Math.max(0, score - POINTS_PENALTY);
+                
+                // Trigger screen shake
+                isShaking = true;
+                
+                // Show dynamic error output log
+                outputLogBox.className = "p-3.5 rounded-lg code-font text-xs border flex items-start gap-2.5 transition-colors bg-red-500/10 border-red-500/30 text-red-400";
+                statusIcon.className = "h-4 w-4 mt-0.5 shrink-0 text-red-400";
+                statusIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />`;
+                outputLogText.innerText = `Syntax Error: Code input failed. Double-check your matching tags and try again.`;
+
+                updateEditorWorkspace();
+                
+                setTimeout(() => {
+                    isShaking = false;
+                    updateEditorWorkspace();
+                }, 400);
+            }
+            
+            renderPanel();
+        }
+
+        // Initialize / Restart game operations
+        function startGame() {
+            initAudio();
+            gameState = 'playing';
+            currentStepIndex = 0;
+            score = 0;
+            inputValue = '';
+            consoleInput.value = '';
+            
+            // Set default output status
+            outputLogBox.className = "p-3.5 rounded-lg code-font text-xs border flex items-start gap-2.5 transition-colors bg-gray-900/40 border-gray-800 text-gray-400";
+            statusIcon.className = "h-4 w-4 mt-0.5 shrink-0 text-gray-400";
+            statusIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />`;
+            outputLogText.innerText = "Compiler successfully restarted. Ready for line input.";
+
+            renderPanel();
+        }
+
+        // Input monitoring and key binding events
+        consoleInput.addEventListener('input', (e) => {
+            inputValue = e.target.value;
+            updateEditorWorkspace();
+        });
+
+        consoleInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                checkAnswer();
+            }
+        });
+
+        // Maintain focus on container tap
+        gameContainer.addEventListener('click', () => {
+            if (gameState === 'playing') {
+                consoleInput.focus();
+            }
+        });
+
+        // Core CTA Handlers
+        startBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            startGame();
+        });
+
+        resetBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            startGame();
+        });
+
+        musicBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleMusic();
+        });
+
+        submitBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            checkAnswer();
+        });
+
+        // Initialize default UI rendering state on page boot
+        window.onload = () => {
+            renderPanel();
+        };
+    </script>
+</body>
+</html>
