@@ -228,12 +228,13 @@
     <!-- Application Engine -->
     <script>
         // Constants & Steps Database matching exact Grade 7 curriculum
+        // Descriptive hints are removed only for <html> and <title> / </title>
         const STEPS = [
           { id: 0, target: '<!DOCTYPE html>', hint: 'Declare the document type to the browser as HTML5. (Hint: starts with &lt;!)', line: 1 },
-          { id: 1, target: '<html>', hint: 'The core container root element that wraps all page code. (Hint: &lt;html&gt;)', line: 2 },
+          { id: 1, target: '<html>', hint: 'Write the opening html root tag.', line: 2 },
           { id: 2, target: '<head>', hint: 'The metadata tag that contains hidden settings, metadata, and stylesheet links.', line: 3 },
-          { id: 3, target: '<title>', hint: 'The opening tab title element inside head. (Hint: &lt;title&gt;)', line: 4 },
-          { id: 4, target: '</title>', hint: 'Close the title tag securely to avoid display bugs! (Hint: uses forward-slash /)', line: 4 },
+          { id: 3, target: '<title>', hint: 'Write the opening title tag.', line: 4 },
+          { id: 4, target: '</title>', hint: 'Write the closing title tag.', line: 4 },
           { id: 5, target: '</head>', hint: 'Close the head tag safely before starting the visible text section.', line: 5 },
           { id: 6, target: '<body>', hint: 'This container holds all the visible elements that users see on the page.', line: 6 },
           { id: 7, target: '</body>', hint: 'Close the body container properly.', line: 8 },
